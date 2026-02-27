@@ -18,6 +18,7 @@ buildNumber.properties
 
 # Local tooling
 .kotlin
+local/db.local.properties
 
 # IntelliJ IDEA
 .idea/modules.xml

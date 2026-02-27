@@ -95,8 +95,8 @@ public final class App extends Application {
                             "For each star, rows with ObjectType IN (1,2,3)\n" +
                             "for that StarSystemID will be deleted and re-inserted.\n" +
                             "Rotation speed and rotation inclination are updated as part of this export.\n\n" +
-                            "DB connection uses env/system props:\n" +
-                            "STARFORGE_DB_URL, STARFORGE_DB_USER, STARFORGE_DB_PASS"
+                            "DB connection uses local config/env/system props:\n" +
+                            "local/db.local.properties or STARFORGE_DB_URL, STARFORGE_DB_USER, STARFORGE_DB_PASS"
             );
 
             if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;

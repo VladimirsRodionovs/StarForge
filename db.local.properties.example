@@ -1,0 +1,4 @@
+# Local DB config (not tracked by git)
+db.url=jdbc:mysql://localhost:3306/EXOLOG
+db.user=ghost_reg
+db.password=CHANGE_ME

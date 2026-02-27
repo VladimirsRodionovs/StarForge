@@ -6,6 +6,11 @@ import org.example.starforge.core.model.*;
 import org.example.starforge.core.physics.Units;
 import org.example.starforge.core.random.DeterministicRng;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.*;
 
@@ -20,13 +25,23 @@ public final class MySqlPerSystemTableExporter {
     // - enum fields are stored by ordinal (stable as long as enum order doesn't change)
     // - PRes order: metal,silicates,water_ice,methane_ice,ammonia_ice,organics
 
-    // Use env vars OR -D system props:
+    // Connection priority:
+    // 1) local/db.local.properties
+    // 2) -D system props
+    // 3) env vars
+    // 4) defaults
+    //
+    // System props:
+    // starforge.db.url, starforge.db.user, starforge.db.pass
+    //
+    // Env vars:
     // STARFORGE_DB_URL  = jdbc:mysql://127.0.0.1:3306/DBNAME?useSSL=false&serverTimezone=UTC
     // STARFORGE_DB_USER = username
     // STARFORGE_DB_PASS = password
-    private static final String CFG_URL  = "jdbc:mysql://localhost:3306/EXOLOG";
-    private static final String CFG_USER = "ghost_reg";
-    private static final String CFG_PASS = "REDACTED_DB_PASSWORD";
+    private static final String DEFAULT_URL  = "jdbc:mysql://localhost:3306/EXOLOG";
+    private static final String DEFAULT_USER = "ghost_reg";
+    private static final String DEFAULT_PASS = "";
+    private static final Path LOCAL_DB_CONFIG_PATH = Paths.get("local", "db.local.properties");
 
     private static final String TEMPLATE_TABLE = "StarSystem_1";
     private static final String TARGET_TABLE = "StarSystems";
@@ -34,17 +49,58 @@ public final class MySqlPerSystemTableExporter {
     private final ObjectMapper om = new ObjectMapper();
 
     public Connection openConnection() throws SQLException {
-        String url  = CFG_URL;
-        String user = CFG_USER;
-        String pass = CFG_PASS;
+        Properties local = loadLocalDbProps();
+        String url = firstNonBlank(
+                local.getProperty("db.url"),
+                System.getProperty("starforge.db.url"),
+                System.getenv("STARFORGE_DB_URL"),
+                DEFAULT_URL
+        );
+        String user = firstNonBlank(
+                local.getProperty("db.user"),
+                System.getProperty("starforge.db.user"),
+                System.getenv("STARFORGE_DB_USER"),
+                DEFAULT_USER
+        );
+        String pass = firstNonBlank(
+                local.getProperty("db.password"),
+                System.getProperty("starforge.db.pass"),
+                System.getenv("STARFORGE_DB_PASS"),
+                DEFAULT_PASS
+        );
 
         if (url == null || url.isBlank()) {
             System.out.println("url bad?");
-            throw new SQLException("Missing DB URL. Set env or -D: " + CFG_URL);
+            throw new SQLException("Missing DB URL. Configure local/db.local.properties, env or -D.");
         }
         if (user == null) user = "";
         if (pass == null) pass = "";
         return DriverManager.getConnection(url, user, pass);
+    }
+
+    private static Properties loadLocalDbProps() throws SQLException {
+        Properties out = new Properties();
+        if (!Files.exists(LOCAL_DB_CONFIG_PATH)) {
+            return out;
+        }
+        try (InputStream in = Files.newInputStream(LOCAL_DB_CONFIG_PATH)) {
+            out.load(in);
+            return out;
+        } catch (IOException e) {
+            throw new SQLException("Failed to read local DB config: " + LOCAL_DB_CONFIG_PATH.toAbsolutePath(), e);
+        }
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value == null) continue;
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        return null;
     }
 
     /** Export one system into StarSystems for the given StarSystemID. */
